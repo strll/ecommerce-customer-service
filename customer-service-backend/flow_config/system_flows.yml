@@ -1,0 +1,201 @@
+# ============================================================================
+# 系统流程配置 (System Flows Configuration)
+# ============================================================================
+# 本文件定义了电商助手的**系统级流程**。与 user_flows.yml（业务对话）不同，
+# 这里的 flow 处理的是引擎内部的状态转换事件，不直接对应某个用户意图。
+#
+# 系统流程由引擎在以下场景自动触发（用户不可见、不可直接调用）：
+#   1. 启动新业务任务时     → system_task_started
+#   2. 恢复挂起的任务时      → system_task_resumed
+#   3. 中断当前任务时        → system_task_interrupted
+#   4. 取消当前任务时        → system_task_canceled
+#   5. 向用户收集信息时      → system_collect_information
+#
+# 系统流程运行时，DialogueState.active_system_task 会指向一个 SystemContext 子类实例。
+# 不同 flow_id 对应不同的 SystemContext 子类（见 atuguigu/domain/contexts.py）：
+#   system_task_started          → StartedSystemContext
+#   system_task_resumed          → ResumedSystemContext
+#   system_task_interrupted      → InterruptedSystemContext
+#   system_task_canceled         → CanceledSystemContext
+#   system_collect_information   → CollectedSystemContext
+#
+# 模板语法 {{ context.xxx }} 使用的是对应 SystemContext 子类的字段。
+# 例如 {{ context.started_flow_name }} 读取 StartedSystemContext.started_flow_name。
+#
+# 与 user_flows.yml 的关键区别：
+#   - 没有 slots 段（系统流程不需要收集业务槽位）
+#   - action 的 args 中常出现 mode: static（静态模板模式）
+#   - 使用了 action_listen（等待用户输入）动作
+# ============================================================================
+
+flows:
+  # ==========================================================================
+  # system_task_started: 任务启动确认流程
+  # ==========================================================================
+  # 触发时机：引擎成功识别用户意图并启动一个业务 flow 后
+  # 上下文类：StartedSystemContext
+  #   字段：
+  #     - started_flow_id:   被启动的业务流程 ID（如 "order_status_query"）
+  #     - started_flow_name: 被启动的业务流程名称（如 "订单状态查询"）
+  # 流程结构：start → acknowledge(回复确认语) → end
+  # 示例输出："好的，我们先处理订单状态查询。"
+  # ==========================================================================
+  system_task_started:
+    description: Flow for acknowledging that a new task has started
+    name: task started acknowledgement
+    steps:
+      - id: start
+        type: start
+        next: acknowledge
+
+      - id: acknowledge
+        type: action
+        action: action_response                          # 动作：发送文本回复
+        args:
+          mode: static                                  # 模式：static = 纯模板渲染模式，不调用 LLM
+          # {{ context.started_flow_name }} 引用 StartedSystemContext 的 started_flow_name 字段
+          text: "好的，我们先处理{{ context.started_flow_name }}。"
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ==========================================================================
+  # system_task_resumed: 任务恢复确认流程
+  # ==========================================================================
+  # 触发时机：用户从 paused_tasks 列表中恢复一个之前被中断的任务
+  # 上下文类：ResumedSystemContext
+  #   字段：
+  #     - resumed_flow_id:   被恢复的业务流程 ID
+  #     - resumed_flow_name: 被恢复的业务流程名称
+  # 流程结构：start → acknowledge → end
+  # 示例输出："好的，我们继续刚才的退款申请。"
+  # ==========================================================================
+  system_task_resumed:
+    description: Flow for acknowledging that a paused task has been resumed
+    name: task resumed acknowledgement
+    steps:
+      - id: start
+        type: start
+        next: acknowledge
+
+      - id: acknowledge
+        type: action
+        action: action_response
+        args:
+          mode: static
+          # {{ context.resumed_flow_name }} 来自 ResumedSystemContext.resumed_flow_name
+          text: "好的，我们继续刚才的{{ context.resumed_flow_name }}。"
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ==========================================================================
+  # system_collect_information: 信息收集流程
+  # ==========================================================================
+  # 触发时机：业务 flow 执行到 type: collect 的步骤时，引擎自动插入此系统流程
+  #          它是所有 collect 步骤的运行时实现。
+  # 上下文类：CollectedSystemContext
+  #   字段：
+  #     - slot_name: 正在收集的槽位名（如 "order_number"，用于前端渲染和路由）
+  #     - response:  系统提示内容，直接来自 user_flows.yml 中 collect 步骤的 response 字段
+  #                  例如 {"text": "请告诉我你的订单号。"}
+  # 流程结构：start → ask(发送问题) → listen(等待输入) → end
+  # 注意：args: context.response 表示直接将上下文中的 response 对象整体传入，
+  #       不需要逐个字段展开。引擎在执行时会把 CollectedSystemContext.response
+  #       这个字典作为 action 的参数。
+  # ==========================================================================
+  system_collect_information:
+    description: Flow for asking the user for a slot value during a collect step
+    name: collect information
+    steps:
+      - id: start
+        type: start
+        next: ask
+
+      - id: ask
+        type: action
+        action: action_response                          # 发送问题文本给用户
+        # context.response 是 CollectedSystemContext.response，内容来自
+        # user_flows.yml 中对应 collect 步骤的 response 字段
+        args: context.response
+        next: listen
+
+      - id: listen
+        type: action
+        action: action_listen                            # 动作：进入监听状态，等待用户回复
+        next: end                                        # 用户回复后系统流程结束，引擎回到业务 flow 继续执行
+
+      - id: end
+        type: end
+        next: []
+
+  # ==========================================================================
+  # system_task_interrupted: 任务中断确认流程
+  # ==========================================================================
+  # 触发时机：当前正在执行一个业务 flow 时，用户表达了新意图，需要中断旧任务
+  #          引擎将旧任务推入 paused_tasks 列表，启动新任务
+  # 上下文类：InterruptedSystemContext
+  #   字段：
+  #     - interrupted_flow_id:   被中断的旧业务流程 ID
+  #     - interrupted_flow_name: 被中断的旧业务流程名称
+  #     - started_flow_id:       新启动的业务流程 ID
+  #     - started_flow_name:     新启动的业务流程名称
+  # 流程结构：start → acknowledge → end
+  # 示例输出："好的，我们先把退款申请放一放，先处理订单状态查询。"
+  # ==========================================================================
+  system_task_interrupted:
+    description: Flow for acknowledging that the current task has been interrupted
+    name: task interrupted acknowledgement
+    steps:
+      - id: start
+        type: start
+        next: acknowledge
+
+      - id: acknowledge
+        type: action
+        action: action_response
+        args:
+          mode: static
+          # {{ context.interrupted_flow_name }}: 旧任务名
+          # {{ context.started_flow_name }}:      新任务名
+          text: "好的，我们先把{{ context.interrupted_flow_name }}放一放，先处理{{ context.started_flow_name }}。"
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ==========================================================================
+  # system_task_canceled: 任务取消确认流程
+  # ==========================================================================
+  # 触发时机：用户明确表达取消意图（如"算了"、"不用了"），或系统超时自动取消
+  # 上下文类：CanceledSystemContext
+  #   字段：
+  #     - canceled_flow_id:   被取消的业务流程 ID
+  #     - canceled_flow_name: 被取消的业务流程名称
+  # 流程结构：start → acknowledge → end
+  # 示例输出："好的，退款申请先帮你取消。"
+  # ==========================================================================
+  system_task_canceled:
+    description: Flow for acknowledging that the current task was canceled
+    name: task canceled acknowledgement
+    steps:
+      - id: start
+        type: start
+        next: acknowledge
+
+      - id: acknowledge
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "好的，{{ context.canceled_flow_name }}先帮你取消。"
+        next: end
+
+      - id: end
+        type: end
+        next: []

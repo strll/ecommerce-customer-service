@@ -1,0 +1,294 @@
+# ============================================================================
+# 用户业务流程配置 (User Flows Configuration)
+# ============================================================================
+# 本文件定义了电商助手的**业务对话流程**。每个 flow 由一系列步骤(steps)组成，
+# 引擎按步骤顺序执行，直到遇到 end 步骤为止。
+#
+# 运行时，DialogueState.active_task 会指向一个 TaskContext，其中记录：
+#   - flow_id: 当前正在执行的流程 ID
+#   - step_id: 当前步骤 ID
+#   - slots:   已收集到的槽位数据（如订单号、退款原因等）
+#
+# 槽位 (slots) 中的数据通过 Jinja2 模板语法 {{ slots.xxx }} 在 action 的
+# text 参数中引用，引擎渲染后作为回复发送给用户。
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# slots: 全局槽位定义
+# ----------------------------------------------------------------------------
+# 槽位是流程中需要从用户那里收集的信息片段。这里集中声明所有槽位的元数据，
+# 供 collect 步骤和 action 步骤的模板文本引用。
+# 运行时槽位的实际值存储在 TaskContext.slots 字典中，例如：
+#   {"order_number": "20240101001", "refund_reason": "不想要了"}
+# ----------------------------------------------------------------------------
+slots:
+  order_number:
+    type: text             # 槽位数据类型，text 表示文本类型
+    label: 订单号           # 前端展示用的标签名
+    description: 用户的订单号 # 槽位的说明文字
+
+  order_status:
+    type: text             # 数据类型
+    label: 订单状态          # 前端展示标签
+    description: 订单当前状态  # 槽位说明
+
+  order_summary:
+    type: text
+    label: 订单摘要
+    description: 订单摘要信息
+
+  tracking_number:
+    type: text
+    label: 物流单号
+    description: 物流单号
+
+  logistics_company:
+    type: text
+    label: 物流公司
+    description: 物流公司名称
+
+  logistics_status:
+    type: text
+    label: 物流进度
+    description: 物流当前进度
+
+  product_id:
+    type: text
+    label: 商品ID
+    description: 当前咨询商品的唯一标识  # 由前端传入，如用户点击商品后携带的 ID
+
+  refund_reason:
+    type: text
+    label: 退款原因
+    description: 申请退款的原因
+
+# ----------------------------------------------------------------------------
+# flows: 业务流程定义
+# ----------------------------------------------------------------------------
+# 每个 flow 是一个独立的对话场景，包含以下字段：
+#   - name:        流程的展示名称（中文，前端可显示）
+#   - description: 流程用途说明
+#   - steps:       步骤列表，按数组顺序定义，引擎通过 id 串联执行
+#
+# 步骤 (step) 通用字段：
+#   - id:   步骤唯一标识，用于其他步骤的 next 引用
+#   - type: 步骤类型，决定引擎如何处理该步骤：
+#           * start   - 流程入口，不做实际操作，仅指向第一个执行步骤
+#           * collect - 向用户收集信息（槽位填充）
+#           * action  - 执行业务动作（查订单、回复消息等）
+#           * end     - 流程结束，next 为空列表表示终止
+#   - next: 下一步骤，支持两种形式：
+#           * 字符串：直接指定下一步骤的 id，如 next: ask_order_number
+#           * 列表：  条件分支，每个元素包含 if/then/else，按顺序匹配
+#                     示例：
+#                       - if: "slots.get('product_id')"   # 条件表达式
+#                         then: respond                     # 条件为真时跳转
+#                       - else: missing_product_context     # 条件为假时跳转
+# ----------------------------------------------------------------------------
+flows:
+  # ==========================================================================
+  # onboarding: 欢迎引导流程
+  # ==========================================================================
+  # 触发时机：聊天窗口首次打开时，由系统自动触发
+  # 流程结构：start → respond → end （纯问候 + 功能介绍）
+  # ==========================================================================
+  onboarding:
+    name: 欢迎引导
+    description: 在聊天窗口初次打开时欢迎用户，并介绍助手可处理的电商服务。这个 flow 通常由系统主动触发。
+    steps:
+      - id: start
+        type: start            # 入口步骤，无实际操作
+        next: respond          # 直接跳转到 respond 步骤
+
+      - id: respond
+        type: action           # 执行动作步骤
+        action: action_response # 动作名：发送文本回复给用户
+        args:
+          text: "你好，这里是 Atguigu 电商助手。我可以帮你查订单状态、查物流、了解商品信息，或者提交退款申请。"
+        next: end              # 回复完后结束
+
+      - id: end
+        type: end              # 终止步骤，next 为空列表表示流程结束
+        next: []
+
+  # ==========================================================================
+  # order_status_query: 订单状态查询流程
+  # ==========================================================================
+  # 触发时机：用户询问订单状态时，由意图识别触发
+  # 流程结构：start → ask_order_number(collect) → lookup_order_status(action) → show_order_status(action) → end
+  # 收集槽位：order_number
+  # 依赖动作：action_lookup_order_status（查数据库/API 获取订单状态）
+  # ==========================================================================
+  order_status_query:
+    name: 订单状态查询
+    description: 帮用户查询订单当前的处理状态，例如待付款、待发货、已发货或已完成。
+    steps:
+      - id: start
+        type: start
+        next: ask_order_number
+
+      - id: ask_order_number
+        type: collect                                    # 收集步骤：向用户索要信息
+        slot_name: order_number                          # 要收集的槽位名，对应上方 slots.order_number
+        response:                                        # 向用户提问的文本
+          text: "请告诉我你的订单号。"
+        next: lookup_order_status                        # 用户输入后跳转
+
+      - id: lookup_order_status
+        type: action                                     # 执行动作步骤
+        action: action_lookup_order_status               # 动作：查询订单状态（需业务层实现）
+        next: show_order_status
+
+      - id: show_order_status
+        type: action
+        action: action_response                          # 回复用户
+        args:
+          # {{ slots.order_number }} 是 Jinja2 模板变量，引擎会用实际槽位值替换
+          text: "订单{{ slots.order_number }}当前状态是：{{ slots.order_status }}。{{ slots.order_summary }}"
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ==========================================================================
+  # logistics_tracking: 物流查询流程
+  # ==========================================================================
+  # 触发时机：用户询问"快递到哪了"等物流相关问题时
+  # 流程结构：start → ask_order_number → lookup_logistics → show_logistics → end
+  # 收集槽位：order_number
+  # 依赖动作：action_lookup_logistics（查物流 API 获取配送信息）
+  # ==========================================================================
+  logistics_tracking:
+    name: 物流查询
+    description: 帮用户查询订单物流进度、物流单号和配送公司信息。
+    steps:
+      - id: start
+        type: start
+        next: ask_order_number
+
+      - id: ask_order_number
+        type: collect
+        slot_name: order_number
+        response:
+          text: "请告诉我你的订单号。"
+        next: lookup_logistics
+
+      - id: lookup_logistics
+        type: action
+        action: action_lookup_logistics                  # 动作：查询物流信息
+        next: show_logistics
+
+      - id: show_logistics
+        type: action
+        action: action_response
+        args:
+          # slots.tracking_number / logistics_company / logistics_status 由 lookup_logistics 动作填充
+          text: "订单{{ slots.order_number }}由{{ slots.logistics_company }}配送，物流单号是{{ slots.tracking_number }}。当前进度：{{ slots.logistics_status }}。"
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ==========================================================================
+  # refund_request0: 退款申请流程
+  # ==========================================================================
+  # 触发时机：用户表达退款意图时
+  # 流程结构：start → ask_order_number → ask_refund_reason → refund_submitted → end
+  # 收集槽位：order_number, refund_reason
+  # 注意：这是一个简化版（命名带 0），收集到信息后仅回复确认，实际退款逻辑待完善
+  # ==========================================================================
+  refund_request0:
+    name: 退款申请
+    description: 帮用户提交简单的退款申请，收集订单号和退款原因。
+    steps:
+      - id: start
+        type: start
+        next: ask_order_number
+
+      - id: ask_order_number
+        type: collect
+        slot_name: order_number
+        response:
+          text: "请告诉我你的订单号。"
+        next: ask_refund_reason                          # 收集完订单号后继续收集退款原因
+
+      - id: ask_refund_reason
+        type: collect
+        slot_name: refund_reason
+        response:
+          text: "请简单说一下退款原因。"
+        next: refund_submitted
+
+      - id: refund_submitted
+        type: action
+        action: action_response
+        args:
+          text: "好的，订单{{ slots.order_number }}的退款申请已提交，原因是：{{ slots.refund_reason }}。后续会尽快为你处理。"
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ==========================================================================
+  # similar_product_recommendation: 相似商品推荐流程
+  # ==========================================================================
+  # 触发时机：用户在浏览商品时请求推荐相似商品
+  # 流程结构：start → [条件分支] → missing_product_context(无商品) 或 respond(有商品) → end
+  # 特点：使用了条件分支（next 是列表），根据 product_id 槽位是否存在分流
+  # ==========================================================================
+  similar_product_recommendation:
+    name: 相似商品推荐
+    description: 基于当前商品为用户推荐类似商品。当前版本先保留流程入口，具体推荐能力后续接入。
+    steps:
+      - id: start
+        type: start
+        next:
+          # 条件分支：按顺序匹配，第一个满足条件的分支生效
+          - if: "slots.get('product_id')"                # 条件：如果 product_id 槽位有值
+            then: respond                                 # 则跳转到推荐步骤
+          - else: missing_product_context                  # 否则提示用户先选商品
+
+      - id: missing_product_context
+        type: action
+        action: action_response
+        args:
+          text: "请先选择一个商品，再继续咨询。"
+        next: end
+
+      - id: respond
+        type: action
+        action: action_recommend_similar_products         # 动作：调用推荐算法/服务
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ==========================================================================
+  # human_handoff: 人工客服转接流程
+  # ==========================================================================
+  # 触发时机：用户明确要求转人工，或系统判断需要人工介入时
+  # 流程结构：start → respond → end
+  # 特点：当前为占位实现，仅回复提示语，实际转接逻辑待对接客服系统
+  # ==========================================================================
+  human_handoff:
+    name: 人工客服
+    description: 将当前对话转交给人工客服处理。
+    steps:
+      - id: start
+        type: start
+        next: respond
+
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          text: "好的，我来为你转接人工客服，请稍等。"
+        next: end
+
+      - id: end
+        type: end
+        next: []
