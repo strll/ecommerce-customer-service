@@ -78,6 +78,12 @@ class BotMessage:
             object=FocusedObject.from_dict(data["object"]) if data.get("object") else None
         )
 
+@dataclass
+class ProcessResult:
+    sender_id: str  #`这次回复给哪个用户
+    message_id: str # 本轮消息的 id（和请求里的对应）
+    messages: list[BotMessage] #机器人本轮要回复的消息列表（可能多条）
+
 
 
 if __name__ == '__main__':
