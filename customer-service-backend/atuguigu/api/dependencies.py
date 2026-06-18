@@ -1,10 +1,20 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from atuguigu.engine.builder import build_dialogue_engine
 from atuguigu.engine.dialogue_engine import DialogueEngine
 from atuguigu.infrastructure import database
 from atuguigu.repository.dialogue_state_repository import DialogueStateRepository
 from atuguigu.service.dialogue_service import DialogueService
+
+_dialogue_engine:DialogueEngine|None=None
+
+def init_dialogue_engine():
+    #构建引擎的方法
+    global _dialogue_engine
+    _dialogue_engine=build_dialogue_engine()
+
+
 
 
 async def get_engine():
