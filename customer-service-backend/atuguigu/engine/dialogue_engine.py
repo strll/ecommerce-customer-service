@@ -1,5 +1,5 @@
-from domain.messages import UserMessage, ProcessResult, BotMessage
-from domain.state import DialogueState
+from atuguigu.domain.messages import ProcessResult, UserMessage, BotMessage
+from atuguigu.domain.state import DialogueState
 
 
 class DialogueEngine:

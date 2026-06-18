@@ -4,8 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from domain.state import DialogueState
-from models.dialogue_state import DialogueStateRecord
+from atuguigu.domain.state import DialogueState
+from atuguigu.models.dialogue_state import DialogueStateRecord
 
 
 class DialogueStateRepository:

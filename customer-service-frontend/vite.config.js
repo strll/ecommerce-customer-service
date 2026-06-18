@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8100',
+        target: 'http://127.0.0.1:18082',
         changeOrigin: true,
       },
       '/commerce': {
@@ -17,7 +17,7 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/commerce/, ''),
       },
       '/health': {
-        target: 'http://127.0.0.1:8100',
+        target: 'http://127.0.0.1:18082',
         changeOrigin: true,
       },
     },
