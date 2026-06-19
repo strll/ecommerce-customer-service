@@ -3,7 +3,7 @@ import time
 
 from atuguigu.domain.messages import ProcessResult, UserMessage, BotMessage, MessageType
 from atuguigu.domain.state import DialogueState
-from atuguigu.plan.turn_planner import TurnPlanner
+from atuguigu.plan.turn_plann import TurnPlanner
 
 
 class DialogueEngine:
