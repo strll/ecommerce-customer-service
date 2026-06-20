@@ -1,15 +1,31 @@
 import datetime
 import time
 
+from atuguigu.chitchat.handler import ChitChatHandler
 from atuguigu.domain.messages import ProcessResult, UserMessage, BotMessage, MessageType
 from atuguigu.domain.state import DialogueState
-from atuguigu.plan.turn_plann import TurnPlanner
+from atuguigu.knowledge.handler import KnowLedgeHandler
+from atuguigu.plan.planner import TurnPlanner
+from atuguigu.plan.turn_validator import TurnPlanValidator
+from atuguigu.task.flow.flow import FlowsList
+from atuguigu.task.handler import TaskHandler
 
 
 class DialogueEngine:
 
-    def __init__(self,turn_planner: TurnPlanner):
+    def __init__(self,turn_planner: TurnPlanner,
+                 turn_validator: TurnPlanValidator,
+                 task_handler: TaskHandler,
+                 konwLedge_handler: KnowLedgeHandler,
+                 chit_chat_handler:ChitChatHandler,
+
+                 ):
+        self.turn_validator=turn_validator
         self.turn_planner=turn_planner
+        self.task_handler=task_handler              # 处理轨道是业务任务的
+        self.konwledge_handler=konwLedge_handler    #处理轨道是信息咨询的
+        self.chit_chat_handler=chit_chat_handler    # 处理轨道是闲聊的
+
 
 
     async def handle_dialogue(self,state: DialogueState,
@@ -26,14 +42,23 @@ class DialogueEngine:
             #3 校验
             #4 分流处理三个轨道
 
-            self._handle_text_msg(state,self.turn_planner)
+            msgs=self._handle_text_msg(state,self.turn_planner,self.task_handler.flows)
 
-            pass
+
         else:
 
             self._handle_obj_msg()
 
-            pass
+        state.current_session().turns.extend()
+
+        return ProcessResult(
+            sender_id=user_message.sender_id,
+            message_id=user_message.message_id,
+            messages=[
+                BotMessage(text="我是智能小客服"),
+                BotMessage(text="欢迎你来到这里...")
+            ]
+        )
 
 
 
@@ -66,7 +91,10 @@ class DialogueEngine:
     def _begin_turn(self, state:DialogueState,userMessage:UserMessage):
         state.begin_turn(userMessage)
 
-    def _handle_text_msg(self, state:DialogueState, turn_planner:TurnPlanner):
+    def _handle_text_msg(self, state:DialogueState,
+                         turn_planner:TurnPlanner,
+                         flows:FlowsList
+                         )->list[BotMessage]:
 
         '''
 
@@ -75,10 +103,19 @@ class DialogueEngine:
         :return:
         '''
 
-        turn_planner.predict()
+        turn_plan=turn_planner.predict(state,flows)
+
+        self.turn_validator.validate()
+
+        if turn_plan.task is not None:
+            self.task_handler.handle()
+        elif turn_plan.knowledge is not None:
+            self.konwledge_handler.handle()
+
+        else:
+            self.chit_chat_handler.handle()
 
 
-        pass
 
 
 

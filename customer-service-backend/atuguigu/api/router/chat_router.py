@@ -1,9 +1,10 @@
 import uuid
 from fastapi import APIRouter, Depends
-from atguigu.api.schema import ChatResponse, ChatRequest, ChatBotMessage, ChatObject
-from atguigu.domain.messages import UserMessage, MessageType, FocusedObject, ProcessResult
-from atguigu.api.dependencies import get_dialogue_service
-from atguigu.service.dialogue_service import DialogueService
+
+from atuguigu.api.dependencies import get_dialogue_service
+from atuguigu.api.schemas import ChatRequest, ChatResponse, ChatBotMessage, ChatObject
+from atuguigu.domain.messages import ProcessResult, UserMessage, MessageType, FocusedObject
+from atuguigu.service.dialogue_service import DialogueService
 
 router = APIRouter()
 
