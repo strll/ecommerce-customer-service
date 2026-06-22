@@ -1,7 +1,10 @@
 from pathlib import Path
 
+from atuguigu import clarify
 from atuguigu.chitchat.handler import ChitChatHandler
+from atuguigu.clarify.responder import ClarifyResponder
 from atuguigu.engine.dialogue_engine import DialogueEngine
+from atuguigu.knowledge.intents import KNOWLEDGE_INTENTS
 from atuguigu.plan.planner import TurnPlanner
 from atuguigu.plan.turn_validator import TurnPlanValidator
 from atuguigu.task.flow.loader import FlowLoader
@@ -16,12 +19,15 @@ FLOW_CONFIG_FILES = ("system_flows.yml", "user_flows.yml")
 def build_dialogue_engine():
 
 
-    flow_list = FlowLoader.load_many([FLOW_CONFIG_DIR / file_name for file_name in FLOW_CONFIG_FILES])
+    flow_list = FlowLoader().load_many(paths= [FLOW_CONFIG_DIR / file_name for file_name in FLOW_CONFIG_FILES])
 
     return DialogueEngine(
         turn_planner=TurnPlanner(),
         turn_validator=TurnPlanValidator(),
+
         task_handler=TaskHandler(flows=flow_list),
-        knowLedge_handler=KnowLedgeHandler(),
-        chit_chat_handler=ChitChatHandler()
+        knowLedge_handler=KnowLedgeHandler(konwledge_intents=KNOWLEDGE_INTENTS),
+        chit_chat_handler=ChitChatHandler(),
+        clarify_responder=ClarifyResponder()
+
     )

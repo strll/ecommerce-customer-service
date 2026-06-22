@@ -46,7 +46,7 @@ class HistoryBuilder:
         :return:
         """
 
-        if user_message.type in MessageType.TEXT:
+        if user_message.type == MessageType.TEXT:
             return HistoryBuilder._render_text_msg(user_message.text)
 
         else:

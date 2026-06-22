@@ -249,3 +249,9 @@ class DialogueState:
     def set_focused_object(self, focused_object: FocusedObject):
         self.focused_object = focused_object
 
+    def commit_turn(self):
+        if self.current_session():
+            self.current_session().turns.append(self.pending_turn)
+            self.pending_turn = None
+
+

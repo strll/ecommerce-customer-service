@@ -18,7 +18,7 @@ def init_dialogue_engine():
 
 
 async def get_engine():
-    return DialogueEngine()
+    return _dialogue_engine
 
 
 async def get_session():

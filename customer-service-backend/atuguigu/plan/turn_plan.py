@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from enum import Enum
 
 from atuguigu.task.command.models import Command
 
@@ -33,7 +34,7 @@ class TurnPlan:
     轮的规划结果(三种任务轨道)---（扩展点，并行处理：后续继续实现）
 
     """
-    task: TaskTurnPlan | None = None                                # 业务任务---业务任务的轨道
+    task: TaskTurnPlan | None = None                       # 业务任务---业务任务的轨道
     knowledge: KnowledgeTurnPlan | None = None                      # 信息质询---信息咨询业务轨道
     chitchat: ChitchatTurnPlan | None = None                        # 闲聊的 ----闲聊业务轨道
 
@@ -48,11 +49,24 @@ class TurnPlan:
 
 
 
+class ClarifyReason(str, Enum):
+    MISSING_TRACK = "missing_track"
+    MULTIPLE_TRACKS = "multiple_tracks"
+    MISSING_TASK_COMMANDS = "missing_task_commands"
+    MISSING_KNOWLEDGE_INTENT = "missing_knowledge_intent"
+    MISSING_FOCUSED_OBJECT = "missing_focused_object"
+    OBJECT_REQUIRES_INTENT = "object_requires_intent"
+    INVALID_TASK_COMMANDS = "invalid_task_commands"
+    MULTIPLE_TASK_FLOWS = "multiple_task_flows"
+    UNKNOWN_TASK_FLOW = "unknown_task_flow"
 
 
 
 
-
+@dataclass
+class TurnPlanValidationResult:
+    valid: bool
+    reason: ClarifyReason | None = None
 
 
 
