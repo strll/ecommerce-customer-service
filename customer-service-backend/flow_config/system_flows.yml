@@ -12,7 +12,7 @@
 #   5. 向用户收集信息时      → system_collect_information
 #
 # 系统流程运行时，DialogueState.active_system_task 会指向一个 SystemContext 子类实例。
-# 不同 flow_id 对应不同的 SystemContext 子类（见 atuguigu/domain/contexts.py）：
+# 不同 flow_id 对应不同的 SystemContext 子类（见 atguigu/domain/contexts.py）：
 #   system_task_started          → StartedSystemContext
 #   system_task_resumed          → ResumedSystemContext
 #   system_task_interrupted      → InterruptedSystemContext
