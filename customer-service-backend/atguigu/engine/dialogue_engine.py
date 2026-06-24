@@ -176,12 +176,12 @@ class DialogueEngine:
 
         # 4. 校验通过：按优先级分流到对应轨道的处理器（task > knowledge > chitchat）
         if turn_plan.task is not None:
-            self.task_handler.handle(state= state,commands= turn_plan.task.commands)
+            return  self.task_handler.handle(state= state,commands= turn_plan.task.commands)
         elif turn_plan.knowledge is not None:
-            self.knowLedge_handler.handle()
+            return   self.knowLedge_handler.handle()
 
         else:
-            self.chit_chat_handler.handle()
+            return  self.chit_chat_handler.handle()
 
     async def _handle_obj_msg(self, user_message: UserMessage,
                               state: DialogueState,

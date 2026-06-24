@@ -5,6 +5,7 @@ from atguigu.task.action.base import Action, ActionResult
 
 
 class RecommendSimilarProductsAction(Action):
+    name = "action_recommend_similar_products"
 
     async def run(self, state: DialogueState, action_kwargs: dict[str, Any]) -> ActionResult:
         """
@@ -13,3 +14,4 @@ class RecommendSimilarProductsAction(Action):
         :param action_kwargs:
         :return:
         """
+        return ActionResult()

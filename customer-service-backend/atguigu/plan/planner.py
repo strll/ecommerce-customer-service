@@ -89,9 +89,9 @@ class TurnPlanner:
         rendered_prompt_str = prompt_template.format(**inputs_prompt)
 
         # 打印出来查看，或者写入日志
-        print("========== 渲染后的提示词 ==========")
-        print(rendered_prompt_str)
-        print("====================================")
+        # print("========== 渲染后的提示词 ==========")
+        # print(rendered_prompt_str)
+        # print("====================================")
 
         chain = prompt_template | llm | JsonOutputParser()
 
