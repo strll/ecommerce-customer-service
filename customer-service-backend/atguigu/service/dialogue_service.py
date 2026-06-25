@@ -1,6 +1,7 @@
-from atguigu.domain.messages import UserMessage, ProcessResult
+from atguigu.domain.messages import UserMessage, ProcessResult, ChatHistoryMessage
 from atguigu.domain.state import DialogueState
 from atguigu.engine.dialogue_engine import DialogueEngine
+from atguigu.prompts.history_builder import HistoryBuilder
 from atguigu.repository.dialogue_state_repository import DialogueStateRepository
 
 
@@ -20,3 +21,17 @@ class DialogueService:
         await self.dialogue_state_repository.save_state(state)
         # 4. 返回本轮处理结果
         return process_result
+
+    async def load_chat_history(self, sender_id: str) -> list[ChatHistoryMessage]:
+        # 1. 获取用户的所有对话状态信息
+        state: DialogueState = await self.dialogue_state_repository.load(sender_id)
+
+        chat_messages: list[ChatHistoryMessage] = []
+        for session in state.sessions:
+            for turn in session.turns:
+                chat_messages.append(HistoryBuilder.render_chat_history_user_message(turn.user_message, session))
+                bot_msg = [HistoryBuilder.render_chat_history_bot_message(bot_msg, session) for bot_msg in
+                           turn.bot_messages]
+                chat_messages.extend(bot_msg)
+
+        return chat_messages

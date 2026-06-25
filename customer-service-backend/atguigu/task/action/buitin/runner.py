@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
 from typing import Any
-from atguigu.task.action.registry import ActionRegistry
+
 from atguigu.task.action.base import ActionResult
 from atguigu.domain.state import DialogueState
+from atguigu.task.action.buitin.registry import ActionRegistry
 
 
 @dataclass

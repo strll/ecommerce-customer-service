@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict
+from typing import Any, Dict, Literal
 
 from atguigu.infrastructure.http_client import main
 
@@ -84,6 +84,14 @@ class ProcessResult:
     message_id: str # 本轮消息的 id（和请求里的对应）
     messages: list[BotMessage] #机器人本轮要回复的消息列表（可能多条）
 
+
+
+@dataclass(slots=True)
+class ChatHistoryMessage:
+    session_id: str
+    role: Literal["user", "bot"]
+    text: str | None = None
+    object: FocusedObject | None = None
 
 
 if __name__ == '__main__':

@@ -12,6 +12,30 @@ class DialogueStateRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+
+    async def load(self, sender_id: str) -> DialogueState:
+        """
+        读操作
+        :return:
+        """
+
+        # 1. 定义sql
+        sql = select(DialogueStateRecord).where(DialogueStateRecord.sender_id == sender_id)
+
+        # 2. 执行sql
+        result = await self.session.execute(sql)
+
+        # 3. 获取结果
+        sate = result.scalar_one_or_none()
+
+        if sate:
+            state_dict = json.loads(sate.state_json)
+            return DialogueState.from_dict(state_dict)
+
+        return DialogueState(sender_id=sender_id)
+
+
+
     async def load_state(self, sender_id: str) -> DialogueState:
         sql = select(DialogueStateRecord).where(
             DialogueStateRecord.sender_id == sender_id
